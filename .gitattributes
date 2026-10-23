@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.glb -text
+*.gz -text
+*.woff2 -text
+*.ttf -text
+# Preserve imported runtime and license formatting.
+assets-source/** -whitespace
