@@ -6,7 +6,7 @@ export function disposeTree(root) {
   geometries.forEach(g => g.dispose()); materials.forEach(m => m.dispose()); textures.forEach(t => t.dispose())
 }
 
-export function createViewport(host, { scene, camera, update, active, resize, label }) {
+export function createViewport(host, { scene, camera, update, active, resize, label, onRendered }) {
   const renderer = new T.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' })
   renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 1.5))
   renderer.setClearColor(0x080d16, 0)
@@ -26,6 +26,7 @@ export function createViewport(host, { scene, camera, update, active, resize, la
     previous = time; renderer.render(scene, camera); count++
     host.dataset.rendered = 'true'
     host.dataset.frames = String(count)
+    onRendered?.()
     if (moving) request(); else previous = 0
   }
   function onResize() {

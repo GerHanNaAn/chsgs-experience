@@ -8,6 +8,7 @@ import StockNarrative from './components/StockNarrative.vue'
 import DepartmentNavigation from './components/DepartmentNavigation.vue'
 import SectionNavigation from './components/SectionNavigation.vue'
 import MosaicTransition from './components/MosaicTransition.vue'
+import OpeningMosaic from './components/OpeningMosaic.vue'
 import FactoryScene from './scenes/FactoryScene.vue'
 import StockScene from './scenes/StockScene.vue'
 import LaserScene from './scenes/LaserScene.vue'
@@ -19,6 +20,7 @@ import { sceneWeights, storyEnd, galleryStart, galleryExit, stops, nextPosition,
 const ValveExperience = defineAsyncComponent(() => import('./scenes/ValveExperience.vue'))
 const { position, chapter, reduced, goTo } = useExperienceRoute()
 const menu = ref(false), detail = ref(false), focusing = ref(false), transitionKey = ref(0)
+const opening = ref(true), factoryReady = ref(false)
 const weights = computed(() => sceneWeights(position.value))
 const department = computed(() => activeDepartment(position.value))
 const inGallery = computed(() => position.value >= galleryStart - .15 && position.value < galleryExit)
@@ -34,9 +36,9 @@ onBeforeUnmount(() => clearTimeout(timer))
 
 <template>
   <div class="scroll-track" :style="{ height: (storyEnd * 160 + 100) + 'vh' }" aria-hidden="true" />
-  <main class="experience" :data-chapter="chapter.id" :data-position="position.toFixed(3)" :inert="detail || undefined">
+  <main class="experience" :data-chapter="chapter.id" :data-position="position.toFixed(3)" :inert="detail || opening || undefined">
     <div class="technical-field" aria-hidden="true"><div class="field-cross cross-a" /><div class="field-cross cross-b" /></div>
-    <div class="scene-layer" :style="{ opacity: weights.factory, visibility: weights.factory > 0 ? 'visible' : 'hidden' }"><FactoryScene :active="weights.factory > 0 && !menu && !detail" :position="position" :reduced="reduced" @select="selectLocation" /></div>
+    <div class="scene-layer" :style="{ opacity: weights.factory, visibility: weights.factory > 0 ? 'visible' : 'hidden' }"><FactoryScene :active="(weights.factory > 0 || opening) && !menu && !detail" :position="position" :reduced="reduced" @select="selectLocation" @ready="factoryReady = true" /></div>
     <div v-if="position > 10.4" class="scene-layer" :style="{ opacity: weights.stock, visibility: weights.stock > 0 ? 'visible' : 'hidden' }"><StockScene :active="weights.stock > 0 && !menu && !detail" :position="position" :reduced="reduced" /></div>
     <div v-if="position > .8 && position < 3.1" class="scene-layer" :style="{ opacity: weights.laser, visibility: weights.laser > 0 ? 'visible' : 'hidden' }"><LaserScene :active="weights.laser > 0 && !menu && !detail" :reduced="reduced" /></div>
     <div v-if="position > 2.1 && position < 4.8" class="scene-layer" :style="{ opacity: weights.cnc, visibility: weights.cnc > 0 ? 'visible' : 'hidden' }"><CncScene :active="weights.cnc > 0 && !menu && !detail" :position="position" :reduced="reduced" /></div>
@@ -59,4 +61,5 @@ onBeforeUnmount(() => clearTimeout(timer))
   </main>
   <ValveExperience v-if="detail" @close="closeProduct" />
   <MosaicTransition :trigger="transitionKey" />
+  <OpeningMosaic v-if="opening" :ready="factoryReady" :reduced="reduced" @complete="opening = false" />
 </template>

@@ -6,9 +6,9 @@ import { buildFactory } from '../three/factory/buildFactory.js'
 import { smooth } from '../data/route.js'
 
 const props = defineProps({ active: Boolean, position: Number, reduced: Boolean })
-const emit = defineEmits(['select'])
+const emit = defineEmits(['select', 'ready'])
 const host = ref(null), loading = ref(true), failed = ref(false), labels = ref([]), hovered = ref('')
-let viewport, factory, camera, disposed = false
+let viewport, factory, camera, disposed = false, ready = false
 const raycaster = new T.Raycaster(), pointer = new T.Vector2()
 function hit(event) {
   if (!factory || !camera) return ''
@@ -28,6 +28,7 @@ onMounted(async () => {
     viewport = createViewport(host.value, {
       scene, camera, active: () => props.active,
       label: 'Каркасная территория завода ЧСГС',
+      onRendered() { if (factory && !ready) { ready = true; emit('ready') } },
       resize(w, h) { camera.setViewOffset(w, h, -w * .10, 0, w, h) },
       update(dt) {
         const warehouse = smooth(6, 6.4, props.position) * (1 - smooth(9.9, 10.5, props.position))
@@ -68,7 +69,7 @@ onMounted(async () => {
     factory = await buildFactory(abort.signal)
     if (disposed) { disposeTree(factory.root); return }
     scene.add(factory.root); loading.value = false; viewport.request()
-  } catch (e) { if (e.name !== 'AbortError') { failed.value = true; console.error(e) } }
+  } catch (e) { if (e.name !== 'AbortError') { failed.value = true; emit('ready'); console.error(e) } }
 })
 watch(() => [props.active, props.position, props.reduced, hovered.value], () => viewport?.request())
 onBeforeUnmount(() => { disposed = true; abort.abort(); viewport?.dispose() })
