@@ -1,5 +1,6 @@
 import * as T from 'three'
 import { blockoutSections } from '../../data/blockout.js'
+import { createEngineeringField } from './engineeringField.js'
 
 export function buildBlockout() {
   const root = new T.Group(), sites = []
@@ -17,6 +18,7 @@ export function buildBlockout() {
   function box(parent, dimensions, at, material = 'wall') {
     const mesh = new T.Mesh(cube, materials[material])
     mesh.scale.set(...dimensions); mesh.position.set(...at)
+    mesh.userData.role = material
     mesh.castShadow = material !== 'paint'; mesh.receiveShadow = true; parent.add(mesh)
     return mesh
   }
@@ -29,6 +31,7 @@ export function buildBlockout() {
   function windows(parent, x, y, z, count) { for (let i = 0; i < count; i++) box(parent, [1.65, 1.15, .13], [x + i * 2.4, y, z], 'glass') }
   for (const section of blockoutSections) {
     const site = new T.Group(); site.name = section.id; site.position.x = section.x; site.scale.setScalar(.8); root.add(site); sites.push(site)
+    site.userData.section = section.index
     box(site, [42, .24, 32], [0, -.18, -7], 'concrete')
     box(site, [46, .12, 11], [0, -.18, 17], 'road')
     box(site, [44, .22, .3], [0, -.04, 10.8], 'wall')
@@ -83,16 +86,17 @@ export function buildBlockout() {
   const length = blockoutSections.at(-1).x + 120
   box(root, [length, .16, 11], [(length - 120) / 2, -.22, 17], 'road')
   for (let x = -40; x < length - 70; x += 8) box(root, [3, .025, .15], [x, -.12, 17], 'paint')
-  // Original undulating ground; no downloaded terrain, model or wire grid.
-  const groundGeometry = new T.PlaneGeometry(length + 180, 240, 100, 30)
+  // Wide terrain facets support the engineering landscape and perspective depth.
+  const groundGeometry = new T.PlaneGeometry(length + 180, 280, 210, 80)
   groundGeometry.rotateX(-Math.PI / 2)
   const points = groundGeometry.attributes.position
   for (let i = 0; i < points.count; i++) {
     const x = points.getX(i), z = points.getZ(i), edge = Math.max(0, Math.min(1, (Math.abs(z + 6) - 43) / 50))
-    points.setY(i, -.38 + edge * (Math.sin(x * .035) * Math.cos(z * .06) * 1.6 - .9))
+    points.setY(i, -.38 + edge * (2 + Math.sin(x * .035) * Math.cos(z * .045) * 4.5 + Math.sin(x * .013 + z * .02) * 3))
   }
   groundGeometry.computeVertexNormals()
   const ground = new T.Mesh(groundGeometry, new T.MeshStandardMaterial({ color: '#343e42', roughness: 1 }))
   ground.position.set((length - 120) / 2, 0, -7); ground.receiveShadow = true; root.add(ground)
-  return { root, sites }
+  const engineering = createEngineeringField(root)
+  return { root, sites, ...engineering }
 }

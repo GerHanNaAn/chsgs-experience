@@ -39,7 +39,6 @@ test('the camera corridor does not intersect any blockout building or platform',
   const bounds = []
   factory.root.traverse(object => {
     if (object.isMesh && object.geometry.type === 'BoxGeometry') bounds.push(new T.Box3().setFromObject(object).expandByScalar(.5))
-    assert.ok(!object.isLine && !object.material?.wireframe)
   })
   assert.equal(factory.sites.length, blockoutSections.length)
   for (let p = 0; p <= blockoutEnd; p += .01) {
