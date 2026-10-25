@@ -5,6 +5,7 @@ public/models/
 public/fonts/
 public/brand/
 qa/
+versions/v3/public/
 .env
 .env.*
 !.env.example
