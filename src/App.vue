@@ -15,15 +15,48 @@ const index = computed(() => blockoutIndex(visualPosition.value))
 const section = computed(() => blockoutSections[index.value])
 const opacity = computed(() => reduced.value ? 1 : captionOpacity(visualPosition.value))
 const traveling = computed(() => opacity.value < .25)
-watch(traveling, moving => { if (moving) focusBounds.value = null })
-function navigate(i) { menu.value = false; focusBounds.value = null; goTo(i) }
-function focusControl(event) {
-  const control = event.target.closest('button,a')
-  if (!control || control.disabled) return
-  const { left, right, top, bottom } = control.getBoundingClientRect()
+let guideControl = null, hoveredControl = null, keyboardControl = null, guideFrame = 0, guideObserver, disposed = false
+function clearGuides() {
+  cancelAnimationFrame(guideFrame); guideFrame = 0
+  guideObserver?.disconnect(); guideControl = null; hoveredControl = null; keyboardControl = null; focusBounds.value = null
+}
+function measureGuides() {
+  guideFrame = 0
+  if (!guideControl?.isConnected || guideControl.disabled || guideControl.closest('[inert]')) { clearGuides(); return }
+  const { left, right, top, bottom } = guideControl.getBoundingClientRect()
   focusBounds.value = { left, right, top, bottom }
 }
-function blurControl(event) { if (!event.relatedTarget?.closest?.('button,a')) focusBounds.value = null }
+function requestGuideMeasure() { if (!disposed && guideControl && !guideFrame) guideFrame = requestAnimationFrame(measureGuides) }
+function trackControl(control) {
+  if (!control || control.disabled) { clearGuides(); return }
+  if (guideControl !== control) {
+    guideObserver?.disconnect(); guideControl = control; guideObserver?.observe(control)
+  }
+  requestGuideMeasure()
+}
+function chooseControl() {
+  const available = control => control?.isConnected && !control.disabled && !control.closest('[inert]')
+  trackControl(available(hoveredControl) ? hoveredControl : available(keyboardControl) ? keyboardControl : null)
+}
+function leaveHover() { hoveredControl = null; chooseControl() }
+watch(traveling, moving => { if (moving) clearGuides() })
+function navigate(i) { menu.value = false; clearGuides(); goTo(i) }
+function focusControl(event) {
+  const control = event.target.closest('button,a')
+  if (event.type === 'focusin') {
+    keyboardControl = control?.matches(':focus-visible') ? control : null
+    if (keyboardControl) hoveredControl = null
+  } else hoveredControl = control
+  chooseControl()
+}
+function blurControl(event) {
+  let control = event.relatedTarget?.closest?.('button,a')
+  if (control === event.target.closest('button,a')) return
+  if (control && !event.currentTarget.contains(control)) control = null
+  if (event.type === 'focusout') keyboardControl = control?.matches(':focus-visible') ? control : null
+  else hoveredControl = control
+  chooseControl()
+}
 let previousOverflow = ''
 watch(menu, async open => {
   if (open) { previousOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; await nextTick(); menuRoot.value?.querySelector('button')?.focus() }
@@ -37,13 +70,23 @@ function key(event) {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
   }
 }
-onMounted(() => window.addEventListener('keydown', key))
-onBeforeUnmount(() => { window.removeEventListener('keydown', key); if (menu.value) document.documentElement.style.overflow = previousOverflow })
+onMounted(() => {
+  guideObserver = new ResizeObserver(requestGuideMeasure)
+  window.addEventListener('keydown', key)
+  window.addEventListener('resize', requestGuideMeasure, { passive: true })
+  window.addEventListener('scroll', requestGuideMeasure, { passive: true })
+  document.fonts.ready.then(requestGuideMeasure)
+})
+onBeforeUnmount(() => {
+  disposed = true; clearGuides(); window.removeEventListener('keydown', key)
+  window.removeEventListener('resize', requestGuideMeasure); window.removeEventListener('scroll', requestGuideMeasure)
+  if (menu.value) document.documentElement.style.overflow = previousOverflow
+})
 </script>
 
 <template>
   <div class="blockout-scroll" :style="{ height: `${(blockoutEnd * scrollScreens + 1) * 100}vh` }" aria-hidden="true" />
-  <main class="blockout" :data-section="section.id" :data-position="position.toFixed(4)" :data-traveling="traveling" @pointerover="focusControl" @pointerout="blurControl" @focusin="focusControl" @focusout="blurControl" @pointerleave="focusBounds = null">
+  <main class="blockout" :data-section="section.id" :data-position="position.toFixed(4)" :data-traveling="traveling" @pointerover="focusControl" @pointerout="blurControl" @focusin="focusControl" @focusout="blurControl" @pointerleave="leaveHover">
     <BlockoutScene :position="position" :reduced="reduced" :active="!menu" @ready="ready = true" @failed="failed = true" @progress="renderedPosition = $event" />
     <div class="blockout-shade" aria-hidden="true" />
     <EngineeringGrid :position="visualPosition" :focus="focusBounds" :ready="ready || failed" :reduced="reduced" />

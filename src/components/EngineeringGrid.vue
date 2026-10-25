@@ -1,24 +1,41 @@
 <script setup>
-import { computed, ref, watch, onBeforeUnmount } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { captionOpacity } from '../data/blockout.js'
 
 const props = defineProps({ position: Number, focus: Object, ready: Boolean, reduced: Boolean })
 const opening = ref(true)
+const svg = ref(null), viewport = ref({ width: 1920, height: 1080 })
+let observer
 let timer
 watch(() => props.ready, ready => { if (ready) timer = setTimeout(() => { opening.value = false }, props.reduced ? 0 : 1400) }, { immediate: true })
-onBeforeUnmount(() => clearTimeout(timer))
+onMounted(() => {
+  observer = new ResizeObserver(() => { viewport.value = { width: svg.value.clientWidth, height: svg.value.clientHeight } })
+  observer.observe(svg.value)
+})
+onBeforeUnmount(() => { clearTimeout(timer); observer?.disconnect() })
 const step = 373, xOffset = 27, yOffset = -20
 const travel = computed(() => 1 - captionOpacity(props.position))
 const parallax = computed(() => props.reduced ? 0 : props.position * 17)
+// DOM rectangles are in viewport CSS pixels. Convert through the SVG's own
+// screen matrix so translations or CSS transforms cannot offset the guides.
+const localFocus = computed(() => {
+  const matrix = svg.value?.getScreenCTM()?.inverse()
+  // Recompute the matrix when the SVG's measured viewport changes.
+  void viewport.value
+  if (!props.focus || !matrix) return null
+  const topLeft = new DOMPoint(props.focus.left, props.focus.top).matrixTransform(matrix)
+  const bottomRight = new DOMPoint(props.focus.right, props.focus.bottom).matrixTransform(matrix)
+  return { left: topLeft.x, right: bottomRight.x, top: topLeft.y, bottom: bottomRight.y }
+})
 function fitLines(values, low, high) {
-  if (!props.focus) return values.map(value => ({ value, active: false }))
+  if (!localFocus.value) return values.map(value => ({ value, active: false }))
   const center = (low + high) / 2
   let before = values.findLastIndex(value => value <= center)
   before = Math.max(0, Math.min(values.length - 2, before))
-  return values.map((value, i) => ({ value: i === before ? low - 8 : i === before + 1 ? high + 8 : value, active: i === before || i === before + 1 }))
+  return values.map((value, i) => ({ value: i === before ? low : i === before + 1 ? high : value, active: i === before || i === before + 1 }))
 }
-const verticals = computed(() => fitLines(Array.from({ length: 6 }, (_, i) => xOffset + i * step), props.focus?.left, props.focus?.right))
-const horizontals = computed(() => fitLines(Array.from({ length: 5 }, (_, i) => yOffset + i * step - parallax.value), props.focus?.top, props.focus?.bottom))
+const verticals = computed(() => fitLines(Array.from({ length: Math.ceil(viewport.value.width / step) + 1 }, (_, i) => xOffset + i * step), localFocus.value?.left, localFocus.value?.right))
+const horizontals = computed(() => fitLines(Array.from({ length: Math.ceil(viewport.value.height / step) + 2 }, (_, i) => yOffset + i * step - parallax.value), localFocus.value?.top, localFocus.value?.bottom))
 const cells = Array.from({ length: 24 }, (_, i) => ({ col: i % 6, row: Math.floor(i / 6), index: i }))
 function cellOpacity(cell) {
   if (props.reduced || travel.value < .02) return 0
@@ -30,10 +47,10 @@ function cellOpacity(cell) {
 <template>
   <div class="engineering-grid" :class="{ focused: !!focus, opening: opening && ready && !reduced }" aria-hidden="true" :data-grid-step="step">
     <div class="engineering-cells"><i v-for="cell in cells" :key="cell.index" :style="{ left: (xOffset + cell.col * step) + 'px', top: (yOffset + cell.row * step) + 'px', width: step + 'px', height: step + 'px', opacity: cellOpacity(cell), '--delay': (cell.col * 90 + cell.row * 55) + 'ms' }" /></div>
-    <svg viewBox="0 0 1920 1080" preserveAspectRatio="none">
-      <defs><linearGradient id="grid-vertical" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1080"><stop offset="0" stop-color="#a5a5be" stop-opacity=".12"/><stop offset=".5" stop-color="#a5a5be" stop-opacity=".07"/><stop offset="1" stop-color="#a5a5be" stop-opacity=".10"/></linearGradient></defs>
-      <line v-for="(line, i) in verticals" :key="'v'+i" class="grid-line vertical" :class="{ selected: line.active }" x1="0" x2="0" y1="0" y2="1080" :style="{ transform: `translateX(${line.value}px)` }" />
-      <line v-for="(line, i) in horizontals" :key="'h'+i" class="grid-line horizontal" :class="{ selected: line.active }" x1="0" x2="1920" y1="0" y2="0" :style="{ transform: `translateY(${line.value}px)` }" />
+    <svg ref="svg">
+      <defs><linearGradient id="grid-vertical" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" :y2="viewport.height"><stop offset="0" stop-color="#a5a5be" stop-opacity=".12"/><stop offset=".5" stop-color="#a5a5be" stop-opacity=".07"/><stop offset="1" stop-color="#a5a5be" stop-opacity=".10"/></linearGradient></defs>
+      <line v-for="(line, i) in verticals" :key="'v'+i" class="grid-line vertical" :class="{ selected: line.active }" x1="0" x2="0" y1="0" :y2="viewport.height" :style="{ transform: `translateX(${line.value}px)` }" />
+      <line v-for="(line, i) in horizontals" :key="'h'+i" class="grid-line horizontal" :class="{ selected: line.active }" x1="0" :x2="viewport.width" y1="0" y2="0" :style="{ transform: `translateY(${line.value}px)` }" />
     </svg>
   </div>
 </template>
