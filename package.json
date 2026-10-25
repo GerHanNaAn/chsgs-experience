@@ -10,7 +10,7 @@
     "build:pages": "node scripts/build-pages.mjs",
     "preview": "vite preview --host 127.0.0.1 --port 3003 --strictPort",
     "test": "node --test tests/*.test.js",
-    "test:versions": "npm test && node --test versions/v1/tests/*.test.js",
+    "test:versions": "npm test && node --test versions/v1/tests/*.test.js && npm run test:v3",
     "dev:v3": "node scripts/prepare-v3-assets.mjs && vite --config versions/v3/vite.config.js --host 127.0.0.1 --port 3004 --strictPort",
     "build:v3": "node scripts/prepare-v3-assets.mjs && vite build --config versions/v3/vite.config.js",
     "preview:v3": "vite preview --config versions/v3/vite.config.js --host 127.0.0.1 --port 3005 --strictPort",
