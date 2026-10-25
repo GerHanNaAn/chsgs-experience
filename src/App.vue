@@ -15,8 +15,9 @@ const index = computed(() => blockoutIndex(visualPosition.value))
 const section = computed(() => blockoutSections[index.value])
 const opacity = computed(() => reduced.value ? 1 : captionOpacity(visualPosition.value))
 const traveling = computed(() => opacity.value < .25)
-let guideControl = null, hoveredControl = null, keyboardControl = null, guideFrame = 0, guideObserver, disposed = false
+let guideControl = null, hoveredControl = null, keyboardControl = null, guideFrame = 0, guideLeaveTimer = 0, guideObserver, disposed = false
 function clearGuides() {
+  clearTimeout(guideLeaveTimer); guideLeaveTimer = 0
   cancelAnimationFrame(guideFrame); guideFrame = 0
   guideObserver?.disconnect(); guideControl = null; hoveredControl = null; keyboardControl = null; focusBounds.value = null
 }
@@ -36,7 +37,13 @@ function trackControl(control) {
 }
 function chooseControl() {
   const available = control => control?.isConnected && !control.disabled && !control.closest('[inert]')
-  trackControl(available(hoveredControl) ? hoveredControl : available(keyboardControl) ? keyboardControl : null)
+  const control = available(hoveredControl) ? hoveredControl : available(keyboardControl) ? keyboardControl : null
+  clearTimeout(guideLeaveTimer); guideLeaveTimer = 0
+  if (control) trackControl(control)
+  // Bridge a small gap between neighbouring controls without starting a return
+  // to the resting grid. A real departure still releases the guides promptly.
+  else if (reduced.value) clearGuides()
+  else guideLeaveTimer = setTimeout(clearGuides, 150)
 }
 function leaveHover() { hoveredControl = null; chooseControl() }
 watch(traveling, moving => { if (moving) clearGuides() })

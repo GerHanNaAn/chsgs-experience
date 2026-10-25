@@ -1,18 +1,20 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { captionOpacity } from '../data/blockout.js'
+import { guideAxis, retargetGuides, advanceGuides } from '../motion/damped.js'
 
 const props = defineProps({ position: Number, focus: Object, ready: Boolean, reduced: Boolean })
 const opening = ref(true)
 const svg = ref(null), viewport = ref({ width: 1920, height: 1080 })
 let observer
 let timer
+let frame = 0, previous = 0, disposed = false
 watch(() => props.ready, ready => { if (ready) timer = setTimeout(() => { opening.value = false }, props.reduced ? 0 : 1400) }, { immediate: true })
 onMounted(() => {
   observer = new ResizeObserver(() => { viewport.value = { width: svg.value.clientWidth, height: svg.value.clientHeight } })
   observer.observe(svg.value)
 })
-onBeforeUnmount(() => { clearTimeout(timer); observer?.disconnect() })
+onBeforeUnmount(() => { disposed = true; clearTimeout(timer); cancelAnimationFrame(frame); observer?.disconnect() })
 const step = 373, xOffset = 27, yOffset = -20
 const travel = computed(() => 1 - captionOpacity(props.position))
 const parallax = computed(() => props.reduced ? 0 : props.position * 17)
@@ -27,15 +29,30 @@ const localFocus = computed(() => {
   const bottomRight = new DOMPoint(props.focus.right, props.focus.bottom).matrixTransform(matrix)
   return { left: topLeft.x, right: bottomRight.x, top: topLeft.y, bottom: bottomRight.y }
 })
-function fitLines(values, low, high) {
-  if (!localFocus.value) return values.map(value => ({ value, active: false }))
-  const center = (low + high) / 2
-  let before = values.findLastIndex(value => value <= center)
-  before = Math.max(0, Math.min(values.length - 2, before))
-  return values.map((value, i) => ({ value: i === before ? low : i === before + 1 ? high : value, active: i === before || i === before + 1 }))
+const verticalHomes = computed(() => Array.from({ length: Math.ceil(viewport.value.width / step) + 1 }, (_, i) => xOffset + i * step))
+const horizontalHomes = computed(() => Array.from({ length: Math.ceil(viewport.value.height / step) + 2 }, (_, i) => yOffset + i * step - parallax.value))
+const xAxis = guideAxis(verticalHomes.value), yAxis = guideAxis(horizontalHomes.value)
+const verticals = ref([]), horizontals = ref([])
+function publishLines() {
+  const lines = axis => axis.lines.map((line, i) => ({ value: line.value, active: axis.focused && (i === axis.pair || i === axis.pair + 1) }))
+  verticals.value = lines(xAxis); horizontals.value = lines(yAxis)
 }
-const verticals = computed(() => fitLines(Array.from({ length: Math.ceil(viewport.value.width / step) + 1 }, (_, i) => xOffset + i * step), localFocus.value?.left, localFocus.value?.right))
-const horizontals = computed(() => fitLines(Array.from({ length: Math.ceil(viewport.value.height / step) + 2 }, (_, i) => yOffset + i * step - parallax.value), localFocus.value?.top, localFocus.value?.bottom))
+function animate(time) {
+  frame = 0
+  const dt = Math.min(previous ? (time - previous) / 1000 : 1 / 60, .05)
+  const movingX = advanceGuides(xAxis, dt, props.reduced), movingY = advanceGuides(yAxis, dt, props.reduced)
+  publishLines(); previous = time
+  if (movingX || movingY) frame = requestAnimationFrame(animate)
+  else previous = 0
+}
+watch([verticalHomes, horizontalHomes, localFocus, () => props.reduced], () => {
+  const focus = localFocus.value
+  retargetGuides(xAxis, verticalHomes.value, focus ? [focus.left, focus.right] : null)
+  retargetGuides(yAxis, horizontalHomes.value, focus ? [focus.top, focus.bottom] : null)
+  if (props.reduced) { cancelAnimationFrame(frame); frame = 0; previous = 0; advanceGuides(xAxis, 0, true); advanceGuides(yAxis, 0, true); publishLines() }
+  else if (!disposed && !frame) frame = requestAnimationFrame(animate)
+}, { immediate: true })
+publishLines()
 const cells = Array.from({ length: 24 }, (_, i) => ({ col: i % 6, row: Math.floor(i / 6), index: i }))
 function cellOpacity(cell) {
   if (props.reduced || travel.value < .02) return 0
@@ -55,5 +72,5 @@ function cellOpacity(cell) {
   </div>
 </template>
 <style scoped>
-.engineering-grid{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}.engineering-grid svg{position:absolute;inset:0;width:100%;height:100%}.grid-line{stroke-width:1;vector-effect:non-scaling-stroke;transition:transform .65s cubic-bezier(.2,.7,.15,1),stroke .35s}.vertical{stroke:url(#grid-vertical)}.horizontal{stroke:#a5a5be;stroke-opacity:.08}.grid-line.selected{stroke:#c4c5d0;stroke-opacity:.25}.engineering-cells{position:absolute;inset:0}.engineering-cells i{position:absolute;background:#606274}.opening .engineering-cells i{background:#070810;animation:grid-unveil .65s var(--delay) both}.opening .engineering-cells i:nth-child(7n){background:#232321}@keyframes grid-unveil{0%{opacity:1}100%{opacity:0}}@media(prefers-reduced-motion:reduce){.grid-line{transition:none}.engineering-cells{display:none}}
+.engineering-grid{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}.engineering-grid svg{position:absolute;inset:0;width:100%;height:100%}.grid-line{stroke-width:1;vector-effect:non-scaling-stroke;transition:stroke .35s,stroke-opacity .35s}.vertical{stroke:url(#grid-vertical)}.horizontal{stroke:#a5a5be;stroke-opacity:.08}.grid-line.selected{stroke:#c4c5d0;stroke-opacity:.25}.engineering-cells{position:absolute;inset:0}.engineering-cells i{position:absolute;background:#606274}.opening .engineering-cells i{background:#070810;animation:grid-unveil .65s var(--delay) both}.opening .engineering-cells i:nth-child(7n){background:#232321}@keyframes grid-unveil{0%{opacity:1}100%{opacity:0}}@media(prefers-reduced-motion:reduce){.grid-line{transition:none}.engineering-cells{display:none}}
 </style>
