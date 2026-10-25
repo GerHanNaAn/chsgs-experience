@@ -3,7 +3,7 @@ import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { captionOpacity } from '../data/blockout.js'
 import { guideAxis, retargetGuides, advanceGuides } from '../motion/damped.js'
 
-const props = defineProps({ position: Number, focus: Object, ready: Boolean, reduced: Boolean })
+const props = defineProps({ position: Number, focus: Object, ready: Boolean, reduced: Boolean, travel: Number, phase: Number })
 const opening = ref(true)
 const svg = ref(null), viewport = ref({ width: 1920, height: 1080 })
 let observer
@@ -16,7 +16,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => { disposed = true; clearTimeout(timer); cancelAnimationFrame(frame); observer?.disconnect() })
 const step = 373, xOffset = 27, yOffset = -20
-const travel = computed(() => 1 - captionOpacity(props.position))
+const travel = computed(() => props.travel ?? 1 - captionOpacity(props.position))
 const parallax = computed(() => props.reduced ? 0 : props.position * 17)
 // DOM rectangles are in viewport CSS pixels. Convert through the SVG's own
 // screen matrix so translations or CSS transforms cannot offset the guides.
@@ -56,7 +56,7 @@ publishLines()
 const cells = Array.from({ length: 24 }, (_, i) => ({ col: i % 6, row: Math.floor(i / 6), index: i }))
 function cellOpacity(cell) {
   if (props.reduced || travel.value < .02) return 0
-  const local = props.position % 1
+  const local = props.phase ?? props.position % 1
   const phase = Math.sin(Math.PI * Math.max(0, Math.min(1, (local - cell.col * .045 - cell.row * .025) / .6)))
   return Math.max(0, phase) * travel.value * (cell.index % 4 === 0 ? .14 : .045)
 }

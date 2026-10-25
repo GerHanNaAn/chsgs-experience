@@ -3,19 +3,26 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import BlockoutScene from './scenes/BlockoutScene.vue'
 import EngineeringGrid from './components/EngineeringGrid.vue'
 import EngineeringHeading from './components/EngineeringHeading.vue'
+import SectionCopy from './components/SectionCopy.vue'
 import { useBlockoutRoute } from './composables/useBlockoutRoute.js'
 import { blockoutSections, blockoutEnd, overviewMetrics, captionOpacity, scrollScreens, blockoutIndex } from './data/blockout.js'
 import { assetUrl } from './three/runtime/assetUrl.js'
+import { blockoutCopy } from './data/blockoutCopy.js'
+import { navigationView } from './motion/blockoutNavigation.js'
 
-const { position, reduced, goTo } = useBlockoutRoute()
+const { position, reduced, navigation, goTo, cancelNavigation } = useBlockoutRoute()
+const scene = ref(null)
 const ready = ref(false), failed = ref(false), menu = ref(false), menuRoot = ref(null), menuButton = ref(null)
 const renderedPosition = ref(0), focusBounds = ref(null)
 const visualPosition = computed(() => ready.value && !failed.value ? renderedPosition.value : position.value)
-const index = computed(() => blockoutIndex(visualPosition.value))
+const flightView = computed(() => navigation.value ? navigationView(navigation.value) : null)
+const index = computed(() => flightView.value?.index ?? blockoutIndex(visualPosition.value))
 const section = computed(() => blockoutSections[index.value])
-const opacity = computed(() => reduced.value ? 1 : captionOpacity(visualPosition.value))
+const copy = computed(() => blockoutCopy[section.value.id])
+const opacity = computed(() => reduced.value ? 1 : flightView.value?.opacity ?? captionOpacity(visualPosition.value))
 const traveling = computed(() => opacity.value < .25)
 let guideControl = null, hoveredControl = null, keyboardControl = null, guideFrame = 0, guideLeaveTimer = 0, guideObserver, disposed = false
+let menuOrigin = null
 function clearGuides() {
   clearTimeout(guideLeaveTimer); guideLeaveTimer = 0
   cancelAnimationFrame(guideFrame); guideFrame = 0
@@ -47,7 +54,11 @@ function chooseControl() {
 }
 function leaveHover() { hoveredControl = null; chooseControl() }
 watch(traveling, moving => { if (moving) clearGuides() })
-function navigate(i) { menu.value = false; clearGuides(); goTo(i) }
+function captureOrigin() { return { position: visualPosition.value, index: index.value, opacity: opacity.value, pose: scene.value?.capturePose() } }
+function navigate(i) {
+  const origin = menu.value && menuOrigin ? menuOrigin : captureOrigin()
+  menu.value = false; clearGuides(); goTo(i, origin)
+}
 function focusControl(event) {
   const control = event.target.closest('button,a')
   if (event.type === 'focusin') {
@@ -66,7 +77,7 @@ function blurControl(event) {
 }
 let previousOverflow = ''
 watch(menu, async open => {
-  if (open) { previousOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; await nextTick(); menuRoot.value?.querySelector('button')?.focus() }
+  if (open) { menuOrigin = captureOrigin(); cancelNavigation(); previousOverflow = document.documentElement.style.overflow; document.documentElement.style.overflow = 'hidden'; await nextTick(); menuRoot.value?.querySelector('button')?.focus() }
   else { document.documentElement.style.overflow = previousOverflow; await nextTick(); menuButton.value?.focus({ preventScroll: true }) }
 })
 function key(event) {
@@ -93,10 +104,10 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="blockout-scroll" :style="{ height: `${(blockoutEnd * scrollScreens + 1) * 100}vh` }" aria-hidden="true" />
-  <main class="blockout" :data-section="section.id" :data-position="position.toFixed(4)" :data-traveling="traveling" @pointerover="focusControl" @pointerout="blurControl" @focusin="focusControl" @focusout="blurControl" @pointerleave="leaveHover">
-    <BlockoutScene :position="position" :reduced="reduced" :active="!menu" @ready="ready = true" @failed="failed = true" @progress="renderedPosition = $event" />
+  <main class="blockout" :data-section="section.id" :data-position="position.toFixed(4)" :data-flight="navigation ? `${navigation.fromIndex + 1}-${navigation.to + 1}` : undefined" :data-flight-progress="navigation?.progress.toFixed(4)" :data-caption-opacity="opacity.toFixed(4)" :data-traveling="traveling" @pointerover="focusControl" @pointerout="blurControl" @focusin="focusControl" @focusout="blurControl" @pointerleave="leaveHover">
+    <BlockoutScene ref="scene" :position="position" :reduced="reduced" :active="!menu" :navigation="navigation" @ready="ready = true" @failed="failed = true" @progress="renderedPosition = $event" />
     <div class="blockout-shade" aria-hidden="true" />
-    <EngineeringGrid :position="visualPosition" :focus="focusBounds" :ready="ready || failed" :reduced="reduced" />
+    <EngineeringGrid :position="visualPosition" :focus="focusBounds" :ready="ready || failed" :reduced="reduced" :travel="navigation ? 1 - opacity : undefined" :phase="navigation?.progress" />
     <div class="blockout-shell" :inert="menu || undefined">
       <header class="blockout-header">
         <button class="blockout-brand" aria-label="К главному въезду" @click="navigate(0)"><img :src="assetUrl('brand/ld-logo.svg')" alt="ЛД" /><span>ЧСГС<small>ЧЕЛЯБИНСКСПЕЦГРАЖДАНСТРОЙ</small></span></button>
@@ -106,8 +117,11 @@ onBeforeUnmount(() => {
       <section class="blockout-copy" :class="{ 'blockout-intro': index === 0 }" :style="{ opacity }" :inert="traveling || undefined" :aria-labelledby="`heading-${section.id}`">
         <p class="blockout-kicker">ЧСГС / {{ section.short }}</p>
         <EngineeringHeading :id="`heading-${section.id}`" :key="section.id" :text="section.title" :intro="index === 0" />
-        <template v-if="index === 0"><p class="blockout-lead">Системообразующий завод.<br>Производство стальных шаровых кранов.</p><button class="blockout-action" @click="navigate(1)">Пройти по территории <span>→</span></button></template>
+        <p v-if="index === 0" class="blockout-lead">{{ copy.body }}</p>
+        <SectionCopy v-else :content="copy" />
+        <button v-if="index === 0" class="blockout-action" @click="navigate(1)">Пройти по территории <span>→</span></button>
         <a v-else-if="index === blockoutEnd" class="blockout-action" href="https://xn--d1an.xn--p1ai/catalog/" target="_blank" rel="noreferrer">Открыть каталог ЛД <span>↗</span></a>
+        <a v-else-if="section.id === 'film'" class="blockout-action" :href="copy.sourceUrl" target="_blank" rel="noreferrer">Фильм о заводе на сайте ЛД <span>↗</span></a>
         <span v-else class="blockout-section-rule" aria-hidden="true" />
       </section>
       <section v-if="index === 0" class="blockout-metrics" :style="{ opacity }" aria-labelledby="scale-title"><h2 id="scale-title">Масштаб завода в цифрах</h2><dl><div v-for="metric in overviewMetrics" :key="metric.label"><dt>{{ metric.label }}</dt><dd><small>{{ metric.prefix || '\u00a0' }}</small>{{ metric.value }}</dd></div></dl></section>

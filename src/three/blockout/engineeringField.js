@@ -67,21 +67,23 @@ export function createEngineeringField(root) {
   const terrainMaterial = lineMaterial('#858aab', .27)
   const terrain = new T.LineSegments(terrainGeometry, terrainMaterial); field.add(terrain)
   root.add(field)
-  function update(position, entrance = 1) {
-    const travel = 1 - captionOpacity(position)
+  function update(position, entrance = 1, transition = null) {
+    const travel = 1 - (transition ? transition.opacity : captionOpacity(position))
     for (const { material, index, accent } of layers) {
-      const focus = index < 0 ? .55 : Math.max(0, 1 - Math.abs(index - position) * 1.5)
+      const focus = index < 0 ? .55 : transition
+        ? transition.from === transition.to && index === transition.to ? 1 : index === transition.from ? 1 - transition.progress : index === transition.to ? transition.progress : 0
+        : Math.max(0, 1 - Math.abs(index - position) * 1.5)
       material.uniforms.uFocus.value = focus
       material.uniforms.uEntrance.value = entrance
       material.uniforms.uTravel.value = travel * focus
-      material.uniforms.uScan.value = (position % 1) * 11
+      material.uniforms.uScan.value = (transition ? transition.progress : position % 1) * 11
       if (accent) material.uniforms.uColor.value.set(focus > .1 ? '#fff000' : '#9b9cb0')
     }
     terrainMaterial.uniforms.uFocus.value = .75
     terrainMaterial.uniforms.uEntrance.value = entrance
     terrainMaterial.uniforms.uTravel.value = travel * .2
     terrainMaterial.uniforms.uScan.value = -1
-    field.userData.activeSection = Math.max(0, Math.min(blockoutEnd, Math.round(position)))
+    field.userData.activeSection = transition ? transition.progress < .5 ? transition.from : transition.to : Math.max(0, Math.min(blockoutEnd, Math.round(position)))
   }
   update(0, 0)
   return { update, field, layers, terrain }

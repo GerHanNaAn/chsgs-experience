@@ -5,11 +5,14 @@ import { createViewport } from '../three/runtime/createViewport.js'
 import { buildBlockout } from '../three/blockout/buildBlockout.js'
 import { sampleBlockoutCamera, blockoutIndex } from '../data/blockout.js'
 import { damp } from '../motion/damped.js'
+import { navigationView, sampleDirectFlight, easeFlight } from '../motion/blockoutNavigation.js'
 
-const props = defineProps({ position: Number, reduced: Boolean, active: Boolean })
+const props = defineProps({ position: Number, reduced: Boolean, active: Boolean, navigation: Object })
 const emit = defineEmits(['ready', 'failed', 'progress'])
 const host = ref(null)
 let viewport, firstFrame = true
+let basePose = sampleBlockoutCamera(props.position)
+defineExpose({ capturePose: () => ({ eye: [...basePose.eye], aim: [...basePose.aim], fov: 35 }) })
 const pointer = { x: 0, y: 0 }, driftX = { value: 0, velocity: 0 }, driftY = { value: 0, velocity: 0 }
 function resetPointer() { pointer.x = 0; pointer.y = 0; viewport?.request() }
 function movePointer(event) {
@@ -27,13 +30,31 @@ onMounted(() => {
     const factory = buildBlockout(); scene.add(factory.root)
     let renderedPosition = props.position
     let entrance = 0
+    let lastFlight = null, bridge = null
     const eye = new T.Vector3(), aim = new T.Vector3(), right = new T.Vector3(), up = new T.Vector3()
     viewport = createViewport(host.value, {
       scene, camera, active: () => props.active, label: 'Прототип территории ЧСГС из простых объёмов. Прокрутка перемещает камеру между корпусами.',
       update(dt) {
-        renderedPosition += (props.position - renderedPosition) * (props.reduced ? 1 : 1 - Math.exp(-dt * 11))
-        if (Math.abs(props.position - renderedPosition) < .0001) renderedPosition = props.position
-        const pose = sampleBlockoutCamera(props.reduced ? blockoutIndex(renderedPosition) : renderedPosition)
+        const flight = props.reduced ? null : props.navigation, view = flight ? navigationView(flight) : null
+        let pose
+        if (flight) {
+          bridge = null; lastFlight = flight.id; renderedPosition = view.position
+          pose = sampleDirectFlight(flight)
+        } else {
+          if (lastFlight !== null && !props.reduced) bridge = { pose: basePose, elapsed: 0 }
+          lastFlight = null
+          renderedPosition += (props.position - renderedPosition) * (props.reduced ? 1 : 1 - Math.exp(-dt * 11))
+          if (Math.abs(props.position - renderedPosition) < .0001) renderedPosition = props.position
+          pose = sampleBlockoutCamera(props.reduced ? blockoutIndex(renderedPosition) : renderedPosition)
+          if (bridge && !props.reduced) {
+            bridge.elapsed += dt
+            const blend = easeFlight(bridge.elapsed / .45)
+            const mix = (a, b) => a.map((v, i) => v + (b[i] - v) * blend)
+            pose = { eye: mix(bridge.pose.eye, pose.eye), aim: mix(bridge.pose.aim, pose.aim), fov: 35 }
+            if (bridge.elapsed >= .45) bridge = null
+          } else bridge = null
+        }
+        basePose = pose
         eye.fromArray(pose.eye); aim.fromArray(pose.aim); camera.position.copy(eye); camera.lookAt(aim)
         let drifting = false
         if (props.reduced) { driftX.value = driftY.value = driftX.velocity = driftY.velocity = 0 }
@@ -46,12 +67,13 @@ onMounted(() => {
           camera.position.copy(eye); camera.lookAt(aim)
         }
         entrance = props.reduced ? 1 : Math.min(1, entrance + dt * 1.35)
-        factory.update(renderedPosition, entrance)
+        factory.update(renderedPosition, entrance, flight ? { from: flight.fromIndex, to: flight.to, progress: view.blend, opacity: view.opacity } : null)
         emit('progress', renderedPosition)
         host.value.dataset.camera = JSON.stringify(eye.toArray().map(v => +v.toFixed(3)))
         host.value.dataset.pointerDrift = JSON.stringify([driftX.value, driftY.value].map(v => +v.toFixed(4)))
         host.value.dataset.cameraPosition = renderedPosition.toFixed(4)
-        return renderedPosition !== props.position || entrance < 1 || drifting
+        host.value.dataset.navigation = flight ? `${flight.fromIndex + 1}-${flight.to + 1}` : ''
+        return (flight ? flight.progress < 1 : renderedPosition !== props.position) || !!bridge || entrance < 1 || drifting
       },
       onRendered() { if (firstFrame) { firstFrame = false; emit('ready') } },
     })
@@ -60,7 +82,7 @@ onMounted(() => {
     window.addEventListener('blur', resetPointer)
   } catch (error) { console.error('Factory blockout', error); emit('failed') }
 })
-watch(() => [props.position, props.active, props.reduced], () => { if (!props.active || props.reduced) resetPointer(); viewport?.request() })
+watch(() => [props.position, props.active, props.reduced, props.navigation], () => { if (!props.active || props.reduced) resetPointer(); viewport?.request() })
 onBeforeUnmount(() => {
   window.removeEventListener('pointermove', movePointer); window.removeEventListener('pointerout', leaveWindow); window.removeEventListener('blur', resetPointer)
   viewport?.dispose()
