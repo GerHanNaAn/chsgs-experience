@@ -22,8 +22,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - run: npm run test:versions
+      - run: npm run build:pages
         env:
           PAGES_BASE_PATH: /${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v4

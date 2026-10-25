@@ -1,0 +1,9 @@
+<script setup>
+import { assetUrl } from '../three/runtime/assetUrl.js'
+defineProps({ menuOpen: Boolean, showNavigation: Boolean })
+defineEmits(['menu', 'home'])
+</script>
+<template><header class="experience-header"><button class="brand" aria-label="В начало экскурсии" @click="$emit('home')"><img :src="assetUrl('brand/ld-logo.svg')" alt="ЛД" /><span>ЧСГС<small>ЧЕЛЯБИНСКСПЕЦГРАЖДАНСТРОЙ</small></span></button><span class="header-caption">ИНЖЕНЕРИЯ. ПРОИЗВОДСТВО. ЛЮДИ.</span><button v-if="showNavigation || menuOpen" class="menu-toggle grid-button" :aria-expanded="menuOpen" aria-controls="route-menu" @click="$emit('menu')"><span>{{ menuOpen ? 'ЗАКРЫТЬ' : 'МЕНЮ' }}</span><i :class="{ open: menuOpen }"><b /><b /></i></button><span v-else class="header-spacer" /></header></template>
+<style scoped>
+.experience-header{position:fixed;z-index:50;top:0;left:64px;right:64px;height:112px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}.experience-header button{pointer-events:auto}.brand{display:flex;align-items:center;gap:20px;text-align:left}.brand img{width:58px;height:42px;object-fit:contain}.brand>span{font-size:25px;font-weight:600;letter-spacing:.1em}.brand small{display:block;margin-top:7px;font-size:7px;letter-spacing:.12em;font-weight:400;color:var(--muted)}.header-caption{font-size:9px;letter-spacing:.22em;color:#8c99a9;margin-left:-150px}.menu-toggle{display:flex;align-items:center;gap:24px;font-size:10px;letter-spacing:.16em;padding:18px 0 18px 20px}.menu-toggle i{width:22px;height:14px;position:relative}.menu-toggle b{height:1px;width:22px;background:var(--accent);position:absolute;right:0;top:3px;transition:transform .3s}.menu-toggle b+ b{top:10px;width:15px}.menu-toggle .open b{transform:translateY(3px) rotate(45deg)}.menu-toggle .open b+b{width:22px;transform:translateY(-4px) rotate(-45deg)}
+</style>

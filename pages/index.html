@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#070810" />
+  <meta name="description" content="Две версии интерактивной презентации завода ЧелябинскСпецГражданСтрой." />
+  <link rel="icon" href="./v2/brand/ld-logo.svg" type="image/svg+xml" />
+  <title>ЧСГС · версии презентации</title>
+  <style>
+    @font-face{font-family:Inter;src:url('./v2/fonts/inter-regular.woff2') format('woff2');font-display:swap}
+    @font-face{font-family:Jura;src:url('./v2/fonts/jura-variable.ttf') format('truetype');font-weight:300 700;font-display:swap}
+    *{box-sizing:border-box}body{margin:0;background:#070810;color:#eeeef4;font-family:Inter,Arial,sans-serif;min-height:100vh}
+    body:before{content:'';position:fixed;inset:0;pointer-events:none;background-image:linear-gradient(#a5a5be12 1px,transparent 1px),linear-gradient(90deg,#a5a5be12 1px,transparent 1px);background-size:373px 373px;background-position:27px -20px}
+    main{position:relative;width:1320px;margin:auto;padding:60px 0 80px}header{display:flex;align-items:center;gap:20px;margin-bottom:135px}header img{width:55px;height:42px}header span{font:26px Jura,sans-serif;letter-spacing:.15em}
+    .eyebrow{font-size:10px;letter-spacing:.2em;color:#92929f;text-transform:uppercase}h1{font:400 52px/1.3 Jura,Arial,sans-serif;text-transform:uppercase;letter-spacing:.04em;margin:28px 0 24px}.intro{font-size:15px;line-height:1.9;color:#9393a1;margin-bottom:60px}
+    .versions{display:grid;grid-template-columns:1fr 1fr;gap:34px}.version{display:flex;min-height:310px;flex-direction:column;padding:36px 38px 32px;color:inherit;text-decoration:none;border:1px solid #80809945;background:#0a0b14c9;transition:border-color .25s,background .25s}.version:hover{border-color:#fff000;background:#11121d}.version:focus-visible{outline:2px solid #fff000;outline-offset:7px}.number{font-size:10px;letter-spacing:.18em;color:#fff000}.version h2{font:400 30px/1.4 Jura,Arial,sans-serif;letter-spacing:.02em;text-transform:uppercase;margin:28px 0 14px}.version p{font-size:13px;line-height:1.9;color:#9999a7;max-width:470px;margin:0}.open{display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding-top:28px;font-size:11px;letter-spacing:.06em}.open b{font-size:25px;color:#fff000;font-weight:400}footer{margin-top:60px;font-size:10px;letter-spacing:.1em;color:#686878}
+    @media(prefers-reduced-motion:reduce){*{transition:none!important}}
+  </style>
+</head>
+<body>
+  <main>
+    <header><img src="./v2/brand/ld-logo.svg" alt="ЛД" /><span>ЧСГС</span></header>
+    <p class="eyebrow">ЧелябинскСпецГражданСтрой · группа ЛД</p>
+    <h1>Выберите версию презентации</h1>
+    <p class="intro">Два взгляда на завод.<br>Каждая версия доступна по отдельной ссылке.</p>
+    <nav class="versions" aria-label="Версии презентации">
+      <a class="version" href="./v1/"><span class="number">01 / ПЕРВАЯ ВЕРСИЯ</span><h2>Экскурсия по заводу</h2><p>Карта территории, производственные процессы,<br>продукция и подробное устройство крана DN400.</p><span class="open">Открыть первую версию <b aria-hidden="true">↗</b></span></a>
+      <a class="version" href="./v2/"><span class="number">02 / ВТОРАЯ ВЕРСИЯ</span><h2>Инженерная среда</h2><p>Каркасная территория, пролёты между корпусами,<br>инженерная сетка и разделы презентации ЧСГС.</p><span class="open">Открыть вторую версию <b aria-hidden="true">↗</b></span></a>
+    </nav>
+    <footer>ЧЕЛЯБИНСК · ЧСГС</footer>
+  </main>
+</body>
+</html>

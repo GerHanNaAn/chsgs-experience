@@ -1,0 +1,11 @@
+node_modules/
+dist/
+public/valve/
+public/models/
+public/fonts/
+public/brand/
+qa/
+.env
+.env.*
+!.env.example
+__pycache__/
